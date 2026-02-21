@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Dev/test
+src/tests/
+scripts/
+logs/
+*.log
+
+# Env & secrets
+.env
+.env.*
+
+# Editor & VCS
+.git/
+.gitignore
+.vscode/
+*.md
+.python-version

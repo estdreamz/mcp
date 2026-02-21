@@ -4,7 +4,7 @@
 from config import (
     DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_CHARSET,
     DB_SSL, DB_SSL_CA, DB_SSL_CERT, DB_SSL_KEY, DB_SSL_VERIFY_CERT, DB_SSL_VERIFY_IDENTITY,
-    MCP_READ_ONLY, MCP_MAX_POOL_SIZE, EMBEDDING_PROVIDER,
+    MCP_READ_ONLY, MCP_MAX_POOL_SIZE, SERVER_BASEPATH, EMBEDDING_PROVIDER,
     ALLOWED_ORIGINS, ALLOWED_HOSTS,
     logger
 )
@@ -892,7 +892,7 @@ class MariaDBServer:
         logger.info("Registered MCP tools explicitly.")
 
     # --- Async Main Server Logic ---
-    async def run_async_server(self, transport="stdio", host="127.0.0.1", port=9001, path="/mcp"):
+    async def run_async_server(self, transport="stdio", host="127.0.0.1", port=30003, path="/mcp"):
         """
         Initializes pool, registers tools, and runs the appropriate async MCP listener.
         This method should be the target for anyio.run().
@@ -921,8 +921,13 @@ class MariaDBServer:
                 transport_kwargs = {"host": host, "port": port, "middleware": middleware}
                 logger.info(f"Starting MCP server via {transport} on {host}:{port}...")
             elif transport == "http":
-                transport_kwargs = {"host": host, "port": port, "path": path, "middleware": middleware}
-                logger.info(f"Starting MCP server via {transport} on {host}:{port}{path}...")
+                # If path is empty, explicitly set to "/" to serve at root
+                actual_path = path if path else "/"
+                transport_kwargs = {"host": host, "port": port, "path": actual_path, "middleware": middleware}
+                if actual_path == "/":
+                    logger.info(f"Starting MCP server via {transport} on {host}:{port} (root path)...")
+                else:
+                    logger.info(f"Starting MCP server via {transport} on {host}:{port}{actual_path}...")
             elif transport == "stdio":
                  logger.info(f"Starting MCP server via {transport}...")
             else:
@@ -949,10 +954,10 @@ if __name__ == "__main__":
                         help='MCP transport protocol (stdio, sse, or http)')
     parser.add_argument('--host', type=str, default='127.0.0.1',
                         help='Host for SSE or HTTP transport')
-    parser.add_argument('--port', type=int, default=9001,
+    parser.add_argument('--port', type=int, default=30003,
                         help='Port for SSE or HTTP transport')
-    parser.add_argument('--path', type=str, default='/mcp',
-                        help='Path for HTTP transport (default: /mcp)')
+    parser.add_argument('--path', type=str, default=SERVER_BASEPATH,
+                        help=f'Path for HTTP transport (default: {SERVER_BASEPATH}, set via SERVER_BASEPATH env var)')
     args = parser.parse_args()
 
     # 1. Create the server instance

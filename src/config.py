@@ -6,11 +6,16 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 # Load environment variables from .env file
-load_dotenv()
+# Use explicit path to .env file relative to this script's location
+_config_dir = Path(__file__).resolve().parent
+_env_file = _config_dir.parent / '.env'
+load_dotenv(dotenv_path=_env_file)
 
 # --- Logging Configuration ---
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-LOG_FILE_PATH = os.getenv("LOG_FILE", "logs/mcp_server.log")
+# Make log file path absolute relative to project root
+_default_log_path = _config_dir.parent / "logs" / "mcp_server.log"
+LOG_FILE_PATH = os.getenv("LOG_FILE", str(_default_log_path))
 LOG_MAX_BYTES = int(os.getenv("LOG_MAX_BYTES", 10 * 1024 * 1024))
 LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", 5))
 
@@ -58,8 +63,8 @@ root_logger.addHandler(file_handler)
 logger = logging.getLogger(__name__)
 
 # --- Database Configuration ---
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = int(os.getenv("DB_PORT", 3306))
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = int(os.getenv("DB_PORT"))
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
@@ -77,6 +82,12 @@ DB_SSL_VERIFY_IDENTITY = os.getenv("DB_SSL_VERIFY_IDENTITY", "false").lower() ==
 # Read-only mode
 MCP_READ_ONLY = os.getenv("MCP_READ_ONLY", "true").lower() == "true"
 MCP_MAX_POOL_SIZE = int(os.getenv("MCP_MAX_POOL_SIZE", 10))
+
+# Server base path for HTTP/SSE transport
+# Default is "" (empty = root path "/")
+# Can be set to "/mcp", "/api", "/v1", etc.
+# Empty string will serve at http://host:port/ (root)
+SERVER_BASEPATH = os.getenv("SERVER_BASEPATH", "")
 
 # --- Embedding Configuration ---
 # Provider selection ('openai' or 'gemini' or 'huggingface')

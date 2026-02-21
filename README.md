@@ -146,6 +146,7 @@ All configuration is via environment variables (typically set in a `.env` file):
 | `DB_SSL_VERIFY_IDENTITY` | Verify server hostname identity (`true`/`false`)     | No       | `false`      |
 | `MCP_READ_ONLY`        | Enforce read-only SQL mode (`true`/`false`)            | No       | `true`       |
 | `MCP_MAX_POOL_SIZE`    | Max DB connection pool size                            | No       | `10`         |
+| `SERVER_BASEPATH`      | Base path for HTTP/SSE transport (e.g., `""`, `/mcp`, `/api`) | No | `""` (root path) |
 | `EMBEDDING_PROVIDER`   | Embedding provider (`openai`/`gemini`/`huggingface`)   | No     |`None`(Disabled)|
 | `OPENAI_API_KEY`       | API key for OpenAI embeddings                          | Yes (if EMBEDDING_PROVIDER=openai) | |
 | `GEMINI_API_KEY`       | API key for Gemini embeddings                          | Yes (if EMBEDDING_PROVIDER=gemini) | |
@@ -259,12 +260,12 @@ export FASTMCP_SERVER_AUTH_GOOGLE_CLIENT_SECRET="GOCSPX-..."
    
    **SSE Transport:**
    ```bash
-   uv run server.py --transport sse --host 127.0.0.1 --port 9001
+   uv run server.py --transport sse --host 127.0.0.1 --port 30003
    ```
    
    **HTTP Transport (streamable HTTP):**
    ```bash
-   uv run server.py --transport http --host 127.0.0.1 --port 9001 --path /mcp
+   uv run server.py --transport http --host 127.0.0.1 --port 30003 --path /mcp
    ```
 
 ---
@@ -352,7 +353,7 @@ export FASTMCP_SERVER_AUTH_GOOGLE_CLIENT_SECRET="GOCSPX-..."
 {
   "servers": {
     "mariadb-mcp-server": {
-      "url": "http://{host}:9001/sse",
+      "url": "http://{host}:30003/sse",
       "type": "sse"
     }
   }
@@ -364,7 +365,7 @@ export FASTMCP_SERVER_AUTH_GOOGLE_CLIENT_SECRET="GOCSPX-..."
 {
   "servers": {
     "mariadb-mcp-server": {
-      "url": "http://{host}:9001/mcp",
+      "url": "http://{host}:30003/mcp",
       "type": "streamable-http"
     }
   }
@@ -383,7 +384,7 @@ export FASTMCP_SERVER_AUTH_GOOGLE_CLIENT_SECRET="GOCSPX-..."
         "-i",
         "--rm",
         "-p",
-        "9001:9001",
+        "30003:30003",
         "-e",
         "DB_HOST=",
         "-e",
