@@ -8,7 +8,3 @@ src/logs/*
 *.pyd
 uv.lock
 .DS_Store
-
-# Environment files with credentials
-.env.dev
-scripts/.env

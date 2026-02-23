@@ -1,25 +1,28 @@
 services:
-  mariadb-server:
-    image: mariadb:11
-    container_name: mariadb
-    environment:
-      MARIADB_ROOT_PASSWORD: 1234
-      MARIADB_DATABASE: enterprise_relation_process_db
-      MARIADB_USER: root
-      MARIADB_PASSWORD: 1234
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-p'1234'"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
   mariadb-mcp:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Set to "none", "openai", "gemini", "huggingface", or "all"
+        # Default: "none" (no embedding dependencies installed)
+        EMBEDDING_EXTRAS: none
     container_name: mariadb-mcp
     env_file: .env
     ports:
       - "30003:30003"
-    depends_on:
-      mariadb-server:
-        condition: service_healthy
+    restart: unless-stopped
+    # Resource limits to control memory usage
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
+    networks:
+      - shared_network
+
+networks:
+  shared_network:
+    external: true
+    name: shared_network

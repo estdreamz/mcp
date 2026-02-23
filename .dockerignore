@@ -5,12 +5,21 @@ __pycache__/
 *.pyo
 *.pyd
 *.egg-info/
+*.so
+*.o
+*.a
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Dev/test
 src/tests/
+tests/
 scripts/
 logs/
 *.log
+.coverage
+htmlcov/
 
 # Env & secrets
 .env
@@ -19,6 +28,22 @@ logs/
 # Editor & VCS
 .git/
 .gitignore
+.github/
 .vscode/
+.idea/
 *.md
 .python-version
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Misc
+*.DS_Store
+.editorconfig

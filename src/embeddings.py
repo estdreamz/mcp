@@ -2,8 +2,7 @@ import logging
 import sys
 import os
 import asyncio
-from typing import List, Optional, Dict, Any, Union, Awaitable
-import numpy as np
+from typing import List, Optional, Dict, Any, Union, Awaitable, TYPE_CHECKING
 
 # Import configuration variables and the logger instance
 from config import (
@@ -14,34 +13,20 @@ from config import (
     logger
 )
 
-# Import specific client libraries
-try:
+# Lazy imports - only load heavy libraries when actually needed
+if TYPE_CHECKING:
+    import numpy as np
     from openai import AsyncOpenAI, OpenAIError
-except ImportError:
-    logger.warning("OpenAI library not installed. OpenAI provider will not be available.")
-    AsyncOpenAI = None # type: ignore
-    OpenAIError = Exception # type: ignore # Generic exception if library missing
-
-# Ensure site-packages is in path for google-genai
-site_packages_paths = [
-    os.path.join(os.path.dirname(sys.executable), 'Lib', 'site-packages'),
-    os.path.join(os.path.dirname(os.path.dirname(sys.executable)), 'Lib', 'site-packages')
-]
-for path in site_packages_paths:
-    if path not in sys.path and os.path.exists(path):
-        logger.info(f"Adding path to sys.path: {path}")
-        sys.path.append(path)
-
-# Import Google Genai SDK
-try:
     import google.genai as genai
     from google.api_core import exceptions as GoogleAPICoreExceptions
-    logger.info("Successfully imported google.genai")
-except ImportError as e:
-    logger.warning(f"Google Generative AI SDK ('google-genai' package) not installed. Gemini provider will not be available. Error: {e}")
-    logger.info(f"Current sys.path: {sys.path}")
-    genai = None # type: ignore
-    GoogleAPICoreExceptions = None # type: ignore
+    from sentence_transformers import SentenceTransformer
+else:
+    np = None
+    AsyncOpenAI = None
+    OpenAIError = None
+    genai = None
+    GoogleAPICoreExceptions = None
+    SentenceTransformer = None
 
 # --- Model Definitions ---
 # Define allowed models and defaults for each provider
@@ -86,17 +71,22 @@ class EmbeddingService:
         logger.info(f"Initializing EmbeddingService with provider: {self.provider}")
 
         if self.provider == "openai":
-            if not AsyncOpenAI:
-                logger.error("OpenAI provider selected, but 'openai' library is not installed.")
-                raise ImportError("OpenAI library not found. Please install it.")
             if not OPENAI_API_KEY:
                 logger.error("OpenAI API key is missing.")
                 raise ValueError("OpenAI API key is required for the OpenAI provider.")
             try:
+                # Lazy import OpenAI only when needed
+                from openai import AsyncOpenAI
+                global OpenAIError
+                from openai import OpenAIError
+
                 self.openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
                 self.allowed_models = ALLOWED_OPENAI_MODELS
                 self.default_model = DEFAULT_OPENAI_MODEL
                 logger.info(f"OpenAI client initialized. Default model: {self.default_model}. Allowed: {self.allowed_models}")
+            except ImportError:
+                logger.error("OpenAI provider selected, but 'openai' library is not installed.")
+                raise ImportError("OpenAI library not found. Please install it with: uv pip install openai")
             except Exception as e:
                 logger.error(f"Failed to initialize OpenAI client: {e}", exc_info=True)
                 raise RuntimeError(f"OpenAI client initialization failed: {e}")
@@ -105,13 +95,30 @@ class EmbeddingService:
                 logger.error("Gemini API key is missing.")
                 raise ValueError("Gemini API key is required for the Gemini provider.")
             try:
+                # Lazy import Google GenAI only when needed
                 import google.genai as genai
                 from google.genai import types as genai_types
-                self.gemini_client = genai.Client(api_key=GEMINI_API_KEY) # Keeping self.gemini_client = genai based on previous structure for embed_content
+                global GoogleAPICoreExceptions
+                from google.api_core import exceptions as GoogleAPICoreExceptions
+
+                # Add site-packages to path if needed for google-genai
+                site_packages_paths = [
+                    os.path.join(os.path.dirname(sys.executable), 'Lib', 'site-packages'),
+                    os.path.join(os.path.dirname(os.path.dirname(sys.executable)), 'Lib', 'site-packages')
+                ]
+                for path in site_packages_paths:
+                    if path not in sys.path and os.path.exists(path):
+                        logger.debug(f"Adding path to sys.path: {path}")
+                        sys.path.append(path)
+
+                self.gemini_client = genai.Client(api_key=GEMINI_API_KEY)
                 self.gemini_config = genai_types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
                 self.allowed_models = ALLOWED_GEMINI_MODELS
                 self.default_model = DEFAULT_GEMINI_MODEL
                 logger.info(f"Gemini client initialized. Default model: {self.default_model}. Allowed: {self.allowed_models}")
+            except ImportError as e:
+                logger.error(f"Google Generative AI SDK ('google-genai' package) not installed. Error: {e}")
+                raise ImportError("Google GenAI library not found. Please install it with: uv pip install google-genai")
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini client: {e}", exc_info=True)
                 raise RuntimeError(f"Gemini client initialization failed: {e}")
@@ -120,23 +127,26 @@ class EmbeddingService:
                 logger.error("EMBEDDING_PROVIDER is 'huggingface' but HF_MODEL is missing in config.")
                 raise ValueError("HuggingFace model (HF_MODEL) is required in config for the HuggingFace provider.")
             try:
+                # Lazy import HuggingFace libraries only when needed
+                global np, SentenceTransformer
+                import numpy as np
                 from sentence_transformers import SentenceTransformer
-                
+
                 # The primary model for this service instance will be HF_MODEL from config
-                self.default_model = HF_MODEL 
+                self.default_model = HF_MODEL
                 self.allowed_models = ALLOWED_HF_MODELS # These are other models that can be specified via embed()
-                
+
                 # Pre-load the default model from config
                 logger.info(f"Initializing SentenceTransformer with configured HF_MODEL: {self.default_model}")
-                self.huggingface_client = SentenceTransformer(self.default_model) 
+                self.huggingface_client = SentenceTransformer(self.default_model)
                 # self.huggingface_client now holds the loaded model instance for config.HF_MODEL
 
                 logger.info(f"HuggingFace provider initialized. Default model (from config.HF_MODEL): '{self.default_model}'. Client loaded. Allowed models for override: {self.allowed_models}")
 
-            except ImportError:
-                logger.error("'sentence-transformers' library not installed. HuggingFace provider will not be available.")
+            except ImportError as e:
+                logger.error(f"'sentence-transformers' or 'numpy' library not installed. HuggingFace provider will not be available. Error: {e}")
                 self.huggingface_client = None # Ensure it's None if import fails
-                raise ImportError("'sentence-transformers' library not found. Please install it.")
+                raise ImportError("'sentence-transformers' library not found. Please install it with: uv pip install sentence-transformers")
             except Exception as e:
                 logger.error(f"Failed to initialize HuggingFace SentenceTransformer with model '{HF_MODEL}': {e}", exc_info=True)
                 self.huggingface_client = None # Ensure it's None if init fails
@@ -346,12 +356,19 @@ class EmbeddingService:
                 logger.error(f"Embed called with unsupported provider: {self.provider}")
                 raise RuntimeError(f"Unsupported embedding provider: {self.provider}")
             
-        except OpenAIError as e:
-            logger.error(f"OpenAI API error during embedding: {e}", exc_info=True)
-            raise RuntimeError(f"OpenAI API error: {e}") from e
-        except GoogleAPICoreExceptions.GoogleAPIError as e: # type: ignore
-            logger.error(f"Gemini API error during embedding: {e}", exc_info=True)
-            raise RuntimeError(f"Gemini API error: {e}") from e
         except Exception as e:
+            # Handle provider-specific errors
+            if self.provider == "openai" and OpenAIError and isinstance(e, OpenAIError):
+                logger.error(f"OpenAI API error during embedding: {e}", exc_info=True)
+                raise RuntimeError(f"OpenAI API error: {e}") from e
+            elif self.provider == "gemini" and GoogleAPICoreExceptions:
+                try:
+                    if isinstance(e, GoogleAPICoreExceptions.GoogleAPIError):
+                        logger.error(f"Gemini API error during embedding: {e}", exc_info=True)
+                        raise RuntimeError(f"Gemini API error: {e}") from e
+                except (AttributeError, NameError):
+                    pass
+
+            # Generic error handling
             logger.error(f"Unexpected error during embedding with {self.provider} model {target_model}: {e}", exc_info=True)
             raise RuntimeError(f"Embedding generation failed: {e}")
