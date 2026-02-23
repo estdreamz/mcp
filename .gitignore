@@ -8,3 +8,7 @@ src/logs/*
 *.pyd
 uv.lock
 .DS_Store
+
+# Local env files with real credentials – never commit these
+.env.dev
+scripts/.env
